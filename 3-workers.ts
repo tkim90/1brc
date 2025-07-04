@@ -13,29 +13,30 @@ interface WorkerResult {
 /**
  * Seeks forward from a position to find the next occurrence of a target byte
  * @param targetByte - The byte to search for (e.g., '\n' = 0x0A)
- * @param fromPos - Starting position to search from
+ * @param fromBytePosition - Starting position to search from
  * @param fd - File descriptor
  * @returns Position of the target byte, or -1 if not found
  */
-function seekForwardToByte(targetByte: number, fromPos: number, fd: number): number {
-  const buffer = Buffer.alloc(4096);
-  let pos = fromPos;
+function seekForwardToByte(targetByte: number, fromBytePosition: number, fd: number): number {
+  const BUFFER_SIZE_BYTES = 1024 * 1024 * 16; // Read in batches of 1MB to cap RAM usage
+  const buffer = Buffer.alloc(BUFFER_SIZE_BYTES);
+  let bytePosition = fromBytePosition;
   
   while (true) {
-    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, pos);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, bytePosition);
     
-    if (bytesRead === 0) {
-      // Reached end of file without finding target byte
-      return -1;
-    }
+    // Exit if we've reached the end of the file (this is how fs.readSync works)
+    if (bytesRead === 0) return -1;
     
     for (let i = 0; i < bytesRead; i++) {
       if (buffer[i] === targetByte) {
-        return pos + i;
+        // We found the target byte (ex. `\n` aka `0x0A`), return the byte position + 1 (because we want to start at the next byte)
+        return bytePosition + i;
       }
     }
     
-    pos += bytesRead;
+    // Move to the next batch of bytes
+    bytePosition += bytesRead;
   }
 }
 
@@ -130,7 +131,7 @@ async function processFileInParallel(filePath: string) {
       });
 
       worker.on("message", (result: WorkerResult) => {
-        console.log(`✅ Worker ${result.workerId} completed: ${result.rowsProcessed} rows in ${(result.processingTime / 1000).toFixed(2)}s`);
+        // console.log(`✅ Worker ${result.workerId} completed: ${result.rowsProcessed} rows in ${(result.processingTime / 1000).toFixed(2)}s`);
         resolve(result);
       });
 

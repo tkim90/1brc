@@ -51,9 +51,9 @@ async function processFileChunk() {
         
         // For performance, avoid console.log in the hot loop
         // Only log progress occasionally
-        if (rowsProcessed % 1000000 === 0) {
-          console.log(`⚡ Worker ${workerId}: ${rowsProcessed.toLocaleString()} rows processed`);
-        }
+        // if (rowsProcessed % 1000000 === 0) {
+        //   console.log(`⚡ Worker ${workerId}: ${rowsProcessed.toLocaleString()} rows processed`);
+        // }
       }
     });
 
