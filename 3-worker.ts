@@ -1,69 +1,79 @@
-import { workerData, parentPort } from "worker_threads";
 import * as fs from "fs";
+import { Worker } from "worker_threads";
 
-interface WorkerData {
-  filePath: string;
-  startByte: number;
-  endByte: number;
+interface WorkerResult {
   workerId: number;
+  rowsProcessed: number;
+  processingTime: number;
+  // Add whatever data you need to collect from each worker
+  results?: any[];
 }
 
-const { filePath, startByte, endByte, workerId } = workerData as WorkerData;
+async function processFileInParallel(filePath: string) {
+  const startTime = performance.now();
 
-async function processChunk() {
-  const startTime = Date.now();
-  let rowsProcessed = 0;
+  // Get file size to calculate chunk boundaries
+  const fileStats = fs.statSync(filePath);
+  console.log("✨1 fileStats", fileStats);
   
-  // Create a read stream for our specific byte range
-  const stream = fs.createReadStream(filePath, {
-    start: startByte,
-    end: endByte - 1,
-    encoding: "utf-8"
+  const FILE_SIZE = fileStats.size;
+  console.log("✨2 fileSize", FILE_SIZE);
+
+  const SIZE_PER_FILE_CHUNK = Math.floor(FILE_SIZE / 4);
+  console.log("✨3 SIZE_PER_FILE_CHUNK", SIZE_PER_FILE_CHUNK);
+
+  // Define chunk boundaries for each worker
+  const chunkRanges = Array.from({ length: 4 }, (_, i) => ({
+    start: SIZE_PER_FILE_CHUNK * i,
+    end: SIZE_PER_FILE_CHUNK * (i + 1),
+  }));
+
+  // Create workers
+  const workers: Promise<WorkerResult>[] = chunkRanges.map((fileChunk, index) => {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker("./3-worker.ts", {
+        workerData: {
+          filePath,
+          startByte: fileChunk.start,
+          endByte: fileChunk.end,
+          workerId: index,
+        },
+      });
+
+      worker.on("message", (result: WorkerResult) => {
+        resolve(result);
+      });
+
+      worker.on("error", reject);
+      worker.on("exit", (code) => {
+        if (code !== 0) {
+          reject(new Error(`Worker stopped with exit code ${code}`));
+        }
+      });
+    });
   });
-  
-  let buffer = "";
-  let firstLine = true;
-  
-  for await (const chunk of stream) {
-    buffer += chunk;
-    const lines = buffer.split("\n");
-    
-    // Keep the last potentially incomplete line in buffer
-    buffer = lines.pop() || "";
-    
-    for (const line of lines) {
-      // Skip the first line if we're not worker 0 (might be incomplete)
-      if (firstLine && workerId !== 0) {
-        firstLine = false;
-        continue;
-      }
-      firstLine = false;
-      
-      if (line.trim()) {
-        // Process your line here
-        const [city, temp] = line.split(";");
-        // Do whatever processing you need...
-        
-        rowsProcessed++;
-      }
-    }
-  }
-  
-  // Process any remaining line in buffer
-  if (buffer.trim()) {
-    const [city, temp] = buffer.split(";");
-    // Process final line...
-    rowsProcessed++;
-  }
-  
-  const processingTime = Date.now() - startTime;
-  
-  // Send results back to main thread
-  parentPort?.postMessage({
-    workerId,
-    rowsProcessed,
-    processingTime
-  });
+
+  // Wait for all workers to complete
+  const results = await Promise.all(workers);
+
+  const endTime = performance.now();
+  const durationSeconds = getDuration(startTime, endTime);
+  const totalRows = results.reduce((sum, r) => sum + r.rowsProcessed, 0);
+
+  console.log(`Processed ${totalRows} rows in ${durationSeconds}s`);
+  console.log(
+    `Average: ${Math.round(totalRows / durationSeconds)} rows/second`
+  );
+
+  return results;
 }
 
-processChunk().catch(console.error);
+// Run it
+processFileInParallel("./measurements.txt")
+  .then((results) => console.log("Complete!", results))
+  .catch(console.error);
+
+function getDuration(startTime: number, endTime: number) {
+  const durationSeconds = (endTime - startTime) / 1000;
+  return durationSeconds;
+}
