@@ -8,3 +8,7 @@
 4. Make sure jdk is in your path, either .zshrc or .bashrc
 5. `./mvnw clean verify`
 6. `./create_measurements_fast.sh 1000000000`
+
+measurements.txt
+📊 Total rows: 999,991,941
+💾 Size: 13.8 GB
