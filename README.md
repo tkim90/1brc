@@ -1,15 +1,10 @@
 # 1br-tae
 
-To install dependencies:
-
-```bash
-bun install
-```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.9. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+# Create the file with 1 billion rows
+# NOTE: file is 13.8GB
+1. Go to https://github.com/gunnarmorling/1brc
+2. Clone the repo
+3. `brew install openjdk@21`
+4. Make sure jdk is in your path, either .zshrc or .bashrc
+5. `./mvnw clean verify`
+6. `./create_measurements_fast.sh 1000000000`
