@@ -1,79 +1,101 @@
 import * as fs from "fs";
-import { Worker } from "worker_threads";
+import * as readline from "readline";
+import { parentPort, workerData } from "worker_threads";
+
+interface WorkerData {
+  filePath: string;
+  startByte: number;
+  endByte: number;
+  workerId: number;
+}
 
 interface WorkerResult {
   workerId: number;
   rowsProcessed: number;
   processingTime: number;
-  // Add whatever data you need to collect from each worker
   results?: any[];
 }
 
-async function processFileInParallel(filePath: string) {
+async function processFileChunk() {
+  const { filePath, startByte, endByte, workerId }: WorkerData = workerData;
   const startTime = performance.now();
-
-  // Get file size to calculate chunk boundaries
-  const fileStats = fs.statSync(filePath);
-  console.log("✨1 fileStats", fileStats);
   
-  const FILE_SIZE = fileStats.size;
-  console.log("✨2 fileSize", FILE_SIZE);
+  console.log(`🔧 Worker ${workerId} starting: bytes ${startByte.toLocaleString()} to ${endByte.toLocaleString()}`);
 
-  const SIZE_PER_FILE_CHUNK = Math.floor(FILE_SIZE / 4);
-  console.log("✨3 SIZE_PER_FILE_CHUNK", SIZE_PER_FILE_CHUNK);
+  let rowsProcessed = 0;
 
-  // Define chunk boundaries for each worker
-  const chunkRanges = Array.from({ length: 4 }, (_, i) => ({
-    start: SIZE_PER_FILE_CHUNK * i,
-    end: SIZE_PER_FILE_CHUNK * (i + 1),
-  }));
+  try {
+    // Create a read stream for the specific byte range
+    const stream = fs.createReadStream(filePath, {
+      start: startByte,
+      end: endByte,
+      highWaterMark: 16 * 1024 * 1024, // 16MB buffer for high throughput
+    });
 
-  // Create workers
-  const workers: Promise<WorkerResult>[] = chunkRanges.map((fileChunk, index) => {
-    return new Promise((resolve, reject) => {
-      const worker = new Worker("./3-worker.ts", {
-        workerData: {
-          filePath,
-          startByte: fileChunk.start,
-          endByte: fileChunk.end,
-          workerId: index,
-        },
-      });
+    // Create readline interface for line-by-line processing
+    const rl = readline.createInterface({
+      input: stream,
+      crlfDelay: Infinity, // Handle Windows line endings properly
+    });
 
-      worker.on("message", (result: WorkerResult) => {
-        resolve(result);
-      });
-
-      worker.on("error", reject);
-      worker.on("exit", (code) => {
-        if (code !== 0) {
-          reject(new Error(`Worker stopped with exit code ${code}`));
+    // Process each line
+    rl.on('line', (line: string) => {
+      // Process the line here - for now just count rows
+      // In a real implementation, you'd parse the line data
+      if (line.trim()) { // Only count non-empty lines
+        rowsProcessed++;
+        
+        // Optional: Parse line data here
+        // const data = line.split(','); // for CSV
+        // const parsed = JSON.parse(line); // for JSON lines
+        
+        // For performance, avoid console.log in the hot loop
+        // Only log progress occasionally
+        if (rowsProcessed % 1000000 === 0) {
+          console.log(`⚡ Worker ${workerId}: ${rowsProcessed.toLocaleString()} rows processed`);
         }
+      }
+    });
+
+    // Handle completion
+    await new Promise<void>((resolve, reject) => {
+      rl.on('close', () => {
+        resolve();
+      });
+
+      rl.on('error', (error) => {
+        reject(error);
+      });
+
+      stream.on('error', (error) => {
+        reject(error);
       });
     });
-  });
 
-  // Wait for all workers to complete
-  const results = await Promise.all(workers);
+    const processingTime = performance.now() - startTime;
+    
+    const result: WorkerResult = {
+      workerId,
+      rowsProcessed,
+      processingTime,
+    };
 
-  const endTime = performance.now();
-  const durationSeconds = getDuration(startTime, endTime);
-  const totalRows = results.reduce((sum, r) => sum + r.rowsProcessed, 0);
+    // Send result back to main thread
+    parentPort?.postMessage(result);
 
-  console.log(`Processed ${totalRows} rows in ${durationSeconds}s`);
-  console.log(
-    `Average: ${Math.round(totalRows / durationSeconds)} rows/second`
-  );
-
-  return results;
+  } catch (error) {
+    console.error(`❌ Worker ${workerId} error:`, error);
+    throw error;
+  }
 }
 
-// Run it
-processFileInParallel("./measurements.txt")
-  .then((results) => console.log("Complete!", results))
-  .catch(console.error);
-
-function getDuration(startTime: number, endTime: number) {
-  const durationSeconds = (endTime - startTime) / 1000;
-  return durationSeconds;
+// Start processing if this is run as a worker
+if (parentPort) {
+  processFileChunk().catch((error) => {
+    console.error(`💥 Worker ${workerData.workerId} failed:`, error);
+    process.exit(1);
+  });
+} else {
+  console.error("This script should only be run as a worker thread");
+  process.exit(1);
 }
