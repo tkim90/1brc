@@ -29,7 +29,7 @@ async function processFileChunk() {
     const stream = fs.createReadStream(filePath, {
       start: startByte,
       end: endByte,
-      highWaterMark: 16 * 1024 * 1024, // 16MB buffer for high throughput
+      highWaterMark: 1024 * 1024 * 24, // 24MB buffer for high throughput
     });
 
     // Create readline interface for line-by-line processing

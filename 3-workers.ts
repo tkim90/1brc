@@ -18,7 +18,7 @@ interface WorkerResult {
  * @returns Position of the target byte, or -1 if not found
  */
 function seekForwardToByte(targetByte: number, fromBytePosition: number, fd: number): number {
-  const BUFFER_SIZE_BYTES = 1024 * 1024 * 16; // Read in batches of 1MB to cap RAM usage
+  const BUFFER_SIZE_BYTES = 4096; // Read in batches of 4KB to cap RAM usage
   const buffer = Buffer.alloc(BUFFER_SIZE_BYTES);
   let bytePosition = fromBytePosition;
   
@@ -50,7 +50,7 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
   const fd = fs.openSync(filePath, "r");
   
   const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
-  const chunks: Array<{start: number, end: number}> = [];
+  const byteChunks: Array<{start: number, end: number}> = [];
   
   let cursor = 0; // Start of next chunk
   
@@ -76,7 +76,7 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
         }
       }
       
-      chunks.push({
+      byteChunks.push({
         start: cursor,
         end: chunkEnd
       });
@@ -93,7 +93,7 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
     fs.closeSync(fd);
   }
   
-  return chunks;
+  return byteChunks;
 }
 
 async function processFileInParallel(filePath: string) {
@@ -104,16 +104,17 @@ async function processFileInParallel(filePath: string) {
   const FILE_SIZE = fileStats.size;
   const CPU_COUNT = os.cpus().length;
   
-  console.log(`📊 File size: ${(FILE_SIZE / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  const fileSizeGB = FILE_SIZE / (1024 ** 3); // Convert bytes to GB (1024^3)
+  console.log(`📊 File size: ${fileSizeGB.toFixed(2)} GB`);
   console.log(`🖥️  Using ${CPU_COUNT} CPU cores`);
 
   // Create line-aligned chunks
   const chunkRanges = createLineAlignedChunks(filePath, CPU_COUNT);
   
-  console.log(`📦 Created ${chunkRanges.length} line-aligned chunks:`);
+  console.log(`📦 Created ${chunkRanges.length} chunks:`);
   chunkRanges.forEach((chunk, i) => {
     const sizeBytes = chunk.end - chunk.start + 1;
-    console.log(`  Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${(sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`   Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${(sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
   });
 
   console.log(`🚀 Starting ${chunkRanges.length} workers...`);
