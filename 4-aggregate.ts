@@ -17,11 +17,10 @@ interface WorkerResult {
 }
 
 /**
- * Seeks forward from a position to find the next occurrence of a target byte (either at or after that position)
- * @param targetByte - The byte to search for (e.g., '\n' = 0x0A)
+ * Seeks forward from a position to find the next occurrence of a newline character (either at or after that position)
  * @param startingByteOffset - Starting byte position to search from
  * @param fd - File descriptor
- * @returns Position of the target byte, or -1 if not found
+ * @returns Position of the newline character, or -1 if not found
  */
 function getNewlinePosition(startingByteOffset: number, fd: number, fileSize: number): number {
   const CHAR_NEWLINE = '\n'.charCodeAt(0);
@@ -54,7 +53,7 @@ function getNewlinePosition(startingByteOffset: number, fd: number, fileSize: nu
  * Creates file chunks that are aligned to line boundaries
  * Ensures no line is split across multiple workers
  */
-function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{start: number, end: number}> {
+function createChunks(filePath: string, cpuCount: number): Array<{start: number, end: number}> {
   const fileStats = fs.statSync(filePath);
   const FILE_SIZE = fileStats.size;
 
@@ -121,7 +120,7 @@ async function processFileInParallel(filePath: string) {
   console.log(`📊 File size: ${fileSizeGB.toFixed(2)} GB`);
   console.log(`🖥️  Using ${CPU_COUNT} CPU cores`);
 
-  const fileChunks = createLineAlignedChunks(filePath, CPU_COUNT);
+  const fileChunks = createChunks(filePath, CPU_COUNT);
   
   console.log(`📦 Created ${fileChunks.length} chunks:`);
   fileChunks.forEach((chunk, i) => {
