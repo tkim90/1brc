@@ -17,7 +17,7 @@ interface WorkerResult {
 }
 
 /**
- * Seeks forward from a position to find the next occurrence of a target byte
+ * Seeks forward from a position to find the next occurrence of a target byte (either at or after that position)
  * @param targetByte - The byte to search for (e.g., '\n' = 0x0A)
  * @param fromBufferPosition - Starting position to search from
  * @param fd - File descriptor
@@ -39,7 +39,8 @@ function getNextTargetBytePosition(targetByte: number, fromBufferPosition: numbe
 
     for (let i = 0; i < readBuffer; i++) {
       if (buffer[i] === targetByte) {
-        return startingBufferPosition + i;
+        const targetBytePosition = startingBufferPosition + i;
+        return targetBytePosition;
       }
     }
 
@@ -75,14 +76,16 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
         // Ends at position 'approxChunkSize - 1' since cursor is 0-indexed
         const tentativeChunkEndPosition = cursor + approxChunkSize - 1;
 
-        const newLineByteValue = 0x0A; // Byte representing '\n'
-        const newlinePos = getNextTargetBytePosition(newLineByteValue, tentativeChunkEndPosition, fd, FILE_SIZE);
+        // Calculate the actual chunk end position by finding the last newline value in the chunk.
+        // This makes sure no chunk has a line split across it.
+        const newLineByteValue = 0x0A; // '\n' byte value
+        const chunkEndPos = getNextTargetBytePosition(newLineByteValue, tentativeChunkEndPosition, fd, FILE_SIZE);
         
-        if (newlinePos === -1) {
+        if (chunkEndPos === -1) {
           // No newline found, we're at the end of the file
           currentChunkLastByte = FILE_SIZE - 1;
         } else {
-          currentChunkLastByte = newlinePos;
+          currentChunkLastByte = chunkEndPos;
         }
       }
       
@@ -91,13 +94,11 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
         end: currentChunkLastByte
       });
       
-      // Next chunk starts after the newline
+      // Next chunk starts after the last byte of the current chunk
       cursor = currentChunkLastByte + 1;
       
-      // If we've reached the end of file, break
-      if (cursor >= FILE_SIZE) {
-        break;
-      }
+      // If we've reached the end of file, break out of the loop
+      if (cursor >= FILE_SIZE) break;
     }
   } finally {
     fs.closeSync(fd);
