@@ -19,32 +19,33 @@ interface WorkerResult {
 /**
  * Seeks forward from a position to find the next occurrence of a target byte (either at or after that position)
  * @param targetByte - The byte to search for (e.g., '\n' = 0x0A)
- * @param fromBufferPosition - Starting position to search from
+ * @param startingByteOffset - Starting byte position to search from
  * @param fd - File descriptor
  * @returns Position of the target byte, or -1 if not found
  */
-function getNextTargetBytePosition(targetByte: number, fromBufferPosition: number, fd: number, fileSize: number): number {
+function getNewlinePosition(startingByteOffset: number, fd: number, fileSize: number): number {
+  const CHAR_NEWLINE = '\n'.charCodeAt(0);
   const ONE_MB_BYTES = 1024 * 1024;
-  let startingBufferPosition = fromBufferPosition;
 
-  while (startingBufferPosition < fileSize) {
-    // Calculate how many bytes are left to read
-    const remainingBytes = fileSize - startingBufferPosition;
+  let byteOffset = startingByteOffset;
+
+  while (byteOffset < fileSize) {
+    const remainingBytes = fileSize - byteOffset;
     const bytesToRead = Math.min(ONE_MB_BYTES, remainingBytes);
     const buffer = Buffer.alloc(bytesToRead);
 
-    const readBuffer = fs.readSync(fd, buffer, 0, bytesToRead, startingBufferPosition);
+    const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, byteOffset);
 
-    if (readBuffer === 0) return -1;
+    if (bytesRead === 0) return -1;
 
-    for (let i = 0; i < readBuffer; i++) {
-      if (buffer[i] === targetByte) {
-        const targetBytePosition = startingBufferPosition + i;
-        return targetBytePosition;
+    for (let i = 0; i < bytesRead; i++) {
+      if (buffer[i] === CHAR_NEWLINE) {
+        const newlinePosition = byteOffset + i;
+        return newlinePosition;
       }
     }
 
-    startingBufferPosition += readBuffer;
+    byteOffset += bytesRead;
   }
   return -1;
 }
@@ -78,8 +79,7 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
 
         // Calculate the actual chunk end position by finding the last newline value in the chunk.
         // This makes sure no chunk has a line split across it.
-        const newLineByteValue = 0x0A; // '\n' byte value
-        const chunkEndPos = getNextTargetBytePosition(newLineByteValue, tentativeChunkEndPosition, fd, FILE_SIZE);
+        const chunkEndPos = getNewlinePosition(tentativeChunkEndPosition, fd, FILE_SIZE);
         
         if (chunkEndPos === -1) {
           // No newline found, we're at the end of the file
@@ -95,6 +95,7 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
       });
       
       // Next chunk starts after the last byte of the current chunk
+      // For chunks that end at a newline, we want the next chunk to start at the character after the newline
       cursor = currentChunkLastByte + 1;
       
       // If we've reached the end of file, break out of the loop
@@ -211,7 +212,7 @@ async function processFileInParallel(filePath: string) {
   
   // Print the first 10 characters of the final output
   const finalOutput = `{${outputParts.join(', ')}}`;
-  console.log(finalOutput);
+  console.log(finalOutput.slice(0, 1000));
 
   return results;
 }
