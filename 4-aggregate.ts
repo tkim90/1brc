@@ -115,27 +115,30 @@ async function processFileInParallel(filePath: string) {
   const FILE_SIZE = fileStats.size;
   const CPU_COUNT = os.cpus().length;
   
-  console.log(`📊 File size: ${(FILE_SIZE / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  const BYTES_TO_GB = 1024 * 1024 * 1024;
+  const fileSizeGB = FILE_SIZE / BYTES_TO_GB;
+  console.log(`📊 File size: ${fileSizeGB.toFixed(2)} GB`);
   console.log(`🖥️  Using ${CPU_COUNT} CPU cores`);
 
-  // Create line-aligned chunks
-  const chunkRanges = createLineAlignedChunks(filePath, CPU_COUNT);
+  const fileChunks = createLineAlignedChunks(filePath, CPU_COUNT);
   
-  console.log(`📦 Created ${chunkRanges.length} line-aligned chunks:`);
-  chunkRanges.forEach((chunk, i) => {
-    const sizeBytes = chunk.end - chunk.start + 1;
-    console.log(`  Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${(sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+  console.log(`📦 Created ${fileChunks.length} chunks:`);
+  fileChunks.forEach((chunk, i) => {
+    const chunkSizeBytes = chunk.end - chunk.start + 1;
+    const chunkSizeMB = chunkSizeBytes / 1024 / 1024;
+    console.log(`  Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${chunkSizeMB.toFixed(2)} MB)`);
   });
 
-  console.log(`🚀 Starting ${chunkRanges.length} workers...`);
+  console.log(`🚀 Starting ${fileChunks.length} workers...`);
 
   // Master statistics aggregation
   const masterStats = new Map<string, StationStats>();
 
   // Create workers with proper error handling
-  const workers: Promise<WorkerResult>[] = chunkRanges.map((fileChunk, index) => {
+  const workers: Promise<WorkerResult>[] = fileChunks.map((fileChunk, index) => {
     return new Promise((resolve, reject) => {
       const worker = new Worker("./4-worker.ts", {
+        execArgv: ['--inspect-brk=0'],
         workerData: {
           filePath,
           startByte: fileChunk.start,
@@ -206,8 +209,9 @@ async function processFileInParallel(filePath: string) {
     outputParts.push(`${station}:${stats.min.toFixed(1)}/${mean.toFixed(1)}/${stats.max.toFixed(1)}`);
   }
   
-  // const finalOutput = `{${outputParts.join(', ')}}`;
-  // console.log(finalOutput);
+  // Print the first 10 characters of the final output
+  const finalOutput = `{${outputParts.join(', ')}}`;
+  console.log(finalOutput);
 
   return results;
 }

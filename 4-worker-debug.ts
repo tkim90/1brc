@@ -1,13 +1,5 @@
 import * as fs from "fs";
 import * as readline from "readline";
-import { parentPort, workerData } from "worker_threads";
-
-interface WorkerData {
-  filePath: string;
-  startByte: number;
-  endByte: number;
-  workerId: number;
-}
 
 interface StationStats {
   sum: number;
@@ -16,15 +8,16 @@ interface StationStats {
   max: number;
 }
 
-interface WorkerResult {
-  workerId: number;
-  rowsProcessed: number;
-  processingTime: number;
-  stats: Record<string, StationStats>;
-}
+// Mock worker data for debugging
+const mockWorkerData = {
+  filePath: "./test.txt",
+  startByte: 0,
+  endByte: 1000, // Just process first 1000 bytes for debugging
+  workerId: 0,
+};
 
 async function processFileChunk() {
-  const { filePath, startByte, endByte, workerId }: WorkerData = workerData;
+  const { filePath, startByte, endByte, workerId } = mockWorkerData;
   const startTime = performance.now();
   
   console.log(`🔧 Worker ${workerId} starting: bytes ${startByte.toLocaleString()} to ${endByte.toLocaleString()}`);
@@ -84,11 +77,10 @@ async function processFileChunk() {
         stationStats.max = Math.max(stationStats.max, temp);
         debugger;
         
-        // For performance, avoid console.log in the hot loop
-        // Only log progress occasionally
-        // if (rowsProcessed % 1000000 === 0) {
-        //   console.log(`⚡ Worker ${workerId}: ${rowsProcessed.toLocaleString()} rows processed`);
-        // }
+        // This debugger statement will work when running this file directly
+        debugger;
+        
+        console.log(`🔍 Row ${rowsProcessed}: station="${station}", temp=${temp}, stats=`, stationStats);
       }
     });
 
@@ -109,15 +101,8 @@ async function processFileChunk() {
 
     const processingTime = performance.now() - startTime;
     
-    const result: WorkerResult = {
-      workerId,
-      rowsProcessed,
-      processingTime,
-      stats,
-    };
-
-    // Send result back to main thread
-    parentPort?.postMessage(result);
+    console.log(`✅ Debug worker completed: ${rowsProcessed} rows in ${(processingTime / 1000).toFixed(2)}s`);
+    console.log(`📊 Final stats:`, stats);
 
   } catch (error) {
     console.error(`❌ Worker ${workerId} error:`, error);
@@ -125,13 +110,5 @@ async function processFileChunk() {
   }
 }
 
-// Start processing if this is run as a worker
-// if (parentPort) {
-//   processFileChunk().catch((error) => {
-//     console.error(`💥 Worker ${workerData.workerId} failed:`, error);
-//     process.exit(1);
-//   });
-// } else {
-//   console.error("This script should only be run as a worker thread");
-//   process.exit(1);
-// }
+// Run the debug version
+processFileChunk().catch(console.error); 

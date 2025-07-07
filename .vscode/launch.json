@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Aggregator (Main)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/4-aggregate.ts",
+      "args": ["./test.txt"],
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--inspect-brk"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "autoAttachChildProcesses": true
+    },
+    {
+      "name": "Debug Current File (Bun)",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--inspect-brk"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "Debug Current File (Node.js)",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--inspect-brk", "--loader", "ts-node/esm"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "Attach to Bun Process",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+} 
