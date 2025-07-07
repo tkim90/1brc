@@ -19,33 +19,33 @@ interface WorkerResult {
 /**
  * Seeks forward from a position to find the next occurrence of a target byte
  * @param targetByte - The byte to search for (e.g., '\n' = 0x0A)
- * @param fromPos - Starting position to search from
+ * @param fromBufferPosition - Starting position to search from
  * @param fd - File descriptor
  * @returns Position of the target byte, or -1 if not found
  */
-function getNextTargetBytePosition(targetByte: number, fromPos: number, fd: number): number {
+function getNextTargetBytePosition(targetByte: number, fromBufferPosition: number, fd: number, fileSize: number): number {
   const ONE_MB_BYTES = 1024 * 1024;
-  const buffer = Buffer.alloc(ONE_MB_BYTES);
-  let pos = fromPos;
-  
-  while (true) {
-    // Read file one buffer at a time
-    const readBuffer = fs.readSync(fd, buffer, 0, buffer.length, pos);
-    
-    // Reached end of file without finding target byte
-    if (readBuffer === 0) {
-      return -1;
-    }
-    
-    // Read one byte at a time
+  let startingBufferPosition = fromBufferPosition;
+
+  while (startingBufferPosition < fileSize) {
+    // Calculate how many bytes are left to read
+    const remainingBytes = fileSize - startingBufferPosition;
+    const bytesToRead = Math.min(ONE_MB_BYTES, remainingBytes);
+    const buffer = Buffer.alloc(bytesToRead);
+
+    const readBuffer = fs.readSync(fd, buffer, 0, bytesToRead, startingBufferPosition);
+
+    if (readBuffer === 0) return -1;
+
     for (let i = 0; i < readBuffer; i++) {
       if (buffer[i] === targetByte) {
-        return pos + i;
+        return startingBufferPosition + i;
       }
     }
-    
-    pos += readBuffer;
+
+    startingBufferPosition += readBuffer;
   }
+  return -1;
 }
 
 /**
@@ -66,32 +66,33 @@ function createLineAlignedChunks(filePath: string, cpuCount: number): Array<{sta
   
   try {
     for (let i = 0; i < cpuCount; i++) {
-      let lastByteOfCurrentChunk: number;
+      let currentChunkLastByte: number;
       
-      if (i === cpuCount - 1) {
-        lastByteOfCurrentChunk = FILE_SIZE - 1;
+      const isLastChunk = i === cpuCount - 1;
+      if (isLastChunk) {
+        currentChunkLastByte = FILE_SIZE - 1;
       } else {
         // Ends at position 'approxChunkSize - 1' since cursor is 0-indexed
         const tentativeChunkEndPosition = cursor + approxChunkSize - 1;
 
-        const newLineByte = 0x0A; // Byte representing '\n'
-        const newlinePos = getNextTargetBytePosition(newLineByte, tentativeChunkEndPosition, fd);
+        const newLineByteValue = 0x0A; // Byte representing '\n'
+        const newlinePos = getNextTargetBytePosition(newLineByteValue, tentativeChunkEndPosition, fd, FILE_SIZE);
         
         if (newlinePos === -1) {
           // No newline found, we're at the end of the file
-          lastByteOfCurrentChunk = FILE_SIZE - 1;
+          currentChunkLastByte = FILE_SIZE - 1;
         } else {
-          lastByteOfCurrentChunk = newlinePos;
+          currentChunkLastByte = newlinePos;
         }
       }
       
       byteChunks.push({
         start: cursor,
-        end: lastByteOfCurrentChunk
+        end: currentChunkLastByte
       });
       
       // Next chunk starts after the newline
-      cursor = lastByteOfCurrentChunk + 1;
+      cursor = currentChunkLastByte + 1;
       
       // If we've reached the end of file, break
       if (cursor >= FILE_SIZE) {
@@ -213,8 +214,16 @@ async function processFileInParallel(filePath: string) {
 // Set optimal thread pool size for file I/O
 process.env.UV_THREADPOOL_SIZE = os.cpus().length.toString();
 
+// Get file path from command line argument
+const filePath = process.argv[2];
+
+if (!filePath) {
+  console.error("❌ Please provide a file path as an argument, e.g.: bun 4-aggregate.ts <filename>");
+  process.exit(1);
+}
+
 // Run it
-processFileInParallel("./measurements.txt")
+processFileInParallel(filePath)
   // .then((results) => {
   //   console.log("\n📈 Worker Performance Summary:");
   //   results.forEach(r => {
