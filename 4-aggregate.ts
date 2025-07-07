@@ -17,34 +17,37 @@ interface WorkerResult {
 }
 
 /**
- * Seeks forward from a position to find the next occurrence of a newline character (either at or after that position)
- * @param startingByteOffset - Starting byte position to search from
+ * Seeks backward from a position to find the previous occurrence of a newline character
+ * @param startingByteOffset - Starting byte position to search backward from
  * @param fd - File descriptor
  * @returns Position of the newline character, or -1 if not found
  */
-function getNewlinePosition(startingByteOffset: number, fd: number, fileSize: number): number {
+function getPreviousNewlinePosition(startingByteOffset: number, fd: number): number {
   const CHAR_NEWLINE = '\n'.charCodeAt(0);
-  const ONE_MB_BYTES = 1024 * 1024;
+  const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 
-  let byteOffset = startingByteOffset;
+  let searchEndByte = startingByteOffset;
 
-  while (byteOffset < fileSize) {
-    const remainingBytes = fileSize - byteOffset;
-    const bytesToRead = Math.min(ONE_MB_BYTES, remainingBytes);
+  // Search backward in chunks
+  while (searchEndByte > 0) {
+    const searchStartByte = Math.max(0, searchEndByte - CHUNK_SIZE);
+    const bytesToRead = searchEndByte - searchStartByte;
     const buffer = Buffer.alloc(bytesToRead);
 
-    const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, byteOffset);
+    const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, searchStartByte);
 
     if (bytesRead === 0) return -1;
 
-    for (let i = 0; i < bytesRead; i++) {
+    // Search backward through this chunk
+    for (let i = bytesRead - 1; i >= 0; i--) {
       if (buffer[i] === CHAR_NEWLINE) {
-        const newlinePosition = byteOffset + i;
-        return newlinePosition;
+        // Newline found. Return the byte position where we found it
+        const newlineByteOffset = searchStartByte + i;
+        return newlineByteOffset;
       }
     }
 
-    byteOffset += bytesRead;
+    searchEndByte = searchStartByte;
   }
   return -1;
 }
@@ -60,7 +63,10 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
   // open the file once and reuse the file descriptor for all readSync() operations
   const fd = fs.openSync(filePath, "r");
   
+  console.log(`📊 File size: ${FILE_SIZE.toLocaleString()} bytes`);
   const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
+  console.log(`Chunk Size: ${Math.floor(approxChunkSize / cpuCount)} bytes`);
+  
   const byteChunks: Array<{start: number, end: number}> = [];
   
   let cursor = 0; // Start of next chunk
@@ -76,9 +82,24 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
         // Ends at position 'approxChunkSize - 1' since cursor is 0-indexed
         const tentativeChunkEndPosition = cursor + approxChunkSize - 1;
 
-        // Calculate the actual chunk end position by finding the last newline value in the chunk.
-        // This makes sure no chunk has a line split across it.
-        const chunkEndPos = getNewlinePosition(tentativeChunkEndPosition, fd, FILE_SIZE);
+        // Calculate the actual chunk end position by finding the previous newline before the tentative end.
+        // This ensures chunks contain complete lines and don't truncate station names.
+        const chunkEndPos = getPreviousNewlinePosition(tentativeChunkEndPosition, fd);
+
+        /*----------------------------------------*/
+        /*           DEBUGGING                    */
+        /*----------------------------------------*/
+        // Read the line at chunkEndPos to show what line we're ending on
+        // const lineBuffer = Buffer.alloc(200); // Buffer to read the line
+        // const lineStartPos = Math.max(0, chunkEndPos - 100); // Start reading a bit before the newline
+        // const bytesRead = fs.readSync(fd, lineBuffer, 0, 200, lineStartPos);
+        // const lineText = lineBuffer.subarray(0, bytesRead).toString('utf8');
+        // const lines = lineText.split('\n');
+        // const lineAtNewline = lines.find(line => line.includes(';')) || 'N/A';
+        
+        // console.log(`✨ NewlinePosition for chunk ${i}: ${chunkEndPos}`);
+        // console.log(`📍 Line at position ${chunkEndPos}: "${lineAtNewline}"`);
+        // console.log(`🔤 UTF-8 bytes: [${Buffer.from(lineAtNewline, 'utf8').join(', ')}]`);
         
         if (chunkEndPos === -1) {
           // No newline found, we're at the end of the file
@@ -128,6 +149,69 @@ async function processFileInParallel(filePath: string) {
     const chunkSizeMB = chunkSizeBytes / 1024 / 1024;
     console.log(`  Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${chunkSizeMB.toFixed(2)} MB)`);
   });
+
+  /*----------------------------------------*/
+  /*           DEBUGGING           */
+  /*----------------------------------------*/
+  // console.log(`\n📍 Chunk byte ranges:`);
+  // fileChunks.forEach((chunk, i) => {
+  //   // Read a small sample from each chunk to show the actual line content
+  //   const fd = fs.openSync(filePath, 'r');
+  //   const sampleSize = Math.min(100, chunk.end - chunk.start + 1);
+  //   const buffer = Buffer.alloc(sampleSize);
+  //   fs.readSync(fd, buffer, 0, sampleSize, chunk.start);
+  //   const sampleText = buffer.toString('utf8').split('\n')[0]; // Get first line
+    
+  //   // Read the end line content
+  //   const endSampleSize = Math.min(100, chunk.end - chunk.start + 1);
+  //   const endBuffer = Buffer.alloc(endSampleSize);
+  //   const endReadStart = Math.max(chunk.start, chunk.end - endSampleSize + 1);
+  //   fs.readSync(fd, endBuffer, 0, endSampleSize, endReadStart);
+  //   const endText = endBuffer.toString('utf8');
+  //   const endLines = endText.split('\n');
+  //   const endLine = endLines[endLines.length - 1] || endLines[endLines.length - 2]; // Get last non-empty line
+    
+  //   fs.closeSync(fd);
+
+  //   function getLineNumberAtByte(filePath: string, bytePosition: number): number {
+  //     const fd = fs.openSync(filePath, 'r');
+  //     let lineNumber = 1;
+  //     let currentByte = 0;
+  //     const bufferSize = 8192; // Read in 8KB chunks for efficiency
+      
+  //     try {
+  //       while (currentByte < bytePosition) {
+  //         const remainingBytes = bytePosition - currentByte;
+  //         const readSize = Math.min(bufferSize, remainingBytes);
+  //         const buffer = Buffer.alloc(readSize);
+  //         const bytesRead = fs.readSync(fd, buffer, 0, readSize, currentByte);
+          
+  //         if (bytesRead === 0) break; // End of file
+          
+  //         // Count newlines in this chunk
+  //         for (let i = 0; i < bytesRead && currentByte + i < bytePosition; i++) {
+  //           if (buffer[i] === 0x0A) { // '\n' character
+  //             lineNumber++;
+  //           }
+  //         }
+          
+  //         currentByte += bytesRead;
+  //       }
+  //     } finally {
+  //       fs.closeSync(fd);
+  //     }
+      
+  //     return lineNumber;
+  //   }
+
+  //   // Calculate line numbers for start and end positions
+  //   const startLineNumber = getLineNumberAtByte(filePath, chunk.start);
+  //   const endLineNumber = getLineNumberAtByte(filePath, chunk.end);
+    
+  //   console.log(`Chunk ${i}:`);
+  //   console.log(`   • Start: byte ${chunk.start.toLocaleString()} (line ${startLineNumber}) - "${sampleText}"`);
+  //   console.log(`   • End:   byte ${chunk.end.toLocaleString()} (line ${endLineNumber}) - "${endLine}"`);
+  // });
 
   console.log(`🚀 Starting ${fileChunks.length} workers...`);
 
@@ -210,8 +294,9 @@ async function processFileInParallel(filePath: string) {
   }
   
   // Print the first 10 characters of the final output
-  const finalOutput = `{${outputParts.join(', ')}}`;
-  console.log(finalOutput.slice(0, 1000));
+  const finalOutput = `{${outputParts.join(',\n')}}`;
+  console.log(finalOutput);
+  // console.log(finalOutput.slice(0, 1000));
 
   return results;
 }
