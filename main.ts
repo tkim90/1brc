@@ -141,7 +141,6 @@ async function processFileInParallel(filePath: string) {
   const workers: Promise<WorkerResult>[] = fileChunks.map((fileChunk, index) => {
     return new Promise((resolve, reject) => {
       const worker = new Worker("./worker.ts", {
-        execArgv: ['--inspect-brk=0'],
         workerData: {
           filePath,
           startByte: fileChunk.start,
