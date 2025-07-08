@@ -63,7 +63,7 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
   // open the file once and reuse the file descriptor for all readSync() operations
   const fd = fs.openSync(filePath, "r");
   
-  console.log(`📊 File size: ${FILE_SIZE.toLocaleString()} bytes`);
+  console.log(`• File size: ${FILE_SIZE.toLocaleString()} bytes`);
   const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
   console.log(`Chunk Size: ${Math.floor(approxChunkSize / cpuCount)} bytes`);
   
@@ -121,9 +121,6 @@ async function processFileInParallel(filePath: string) {
   const FILE_SIZE = fileStats.size;
   const CPU_COUNT = os.cpus().length;
   
-  const BYTES_TO_GB = 1024 * 1024 * 1024;
-  const fileSizeGB = FILE_SIZE / BYTES_TO_GB;
-  console.log(`• File size: ${fileSizeGB.toFixed(2)} GB`);
   console.log(`• Using ${CPU_COUNT} CPU cores`);
 
   const fileChunks = createChunks(filePath, CPU_COUNT);
