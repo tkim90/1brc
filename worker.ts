@@ -82,7 +82,6 @@ async function processFileChunk() {
         stationStats.cnt += 1;
         stationStats.min = Math.min(stationStats.min, temp);
         stationStats.max = Math.max(stationStats.max, temp);
-        debugger;
         
         // For performance, avoid console.log in the hot loop
         // Only log progress occasionally
