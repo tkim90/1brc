@@ -122,7 +122,7 @@ async function processFileInParallel(filePath: string) {
   // Create workers with proper error handling
   const workers: Promise<WorkerResult>[] = chunkRanges.map((fileChunk, index) => {
     return new Promise((resolve, reject) => {
-      const worker = new Worker("./3-worker.ts", {
+      const worker = new Worker("./archive/3-worker.ts", {
         workerData: {
           filePath,
           startByte: fileChunk.start,

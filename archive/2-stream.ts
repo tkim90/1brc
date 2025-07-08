@@ -1,27 +1,24 @@
-import { createReadStream } from "fs";
-import * as readline from "readline";
+import { readFileSync } from "fs";
 
 // Goal: Read entire content in less than 10 seconds
 
 console.log("Hello via Bun!");
 const startTime = performance.now();
 
-const stream = createReadStream("measurements.txt", { encoding: "utf-8" });
-const rl = readline.createInterface({
-  input: stream,
-  crlfDelay: Infinity,
-});
+const buffer = readFileSync("measurements.txt");
+const content = buffer.toString('utf-8');
+const lines = content.split('\n');
 
 let count = 0;
-rl.on("line", (line) => {
-  count++;
-});
+for (const line of lines) {
+  if (line.trim()) { // Only count non-empty lines
+    count++;
+  }
+}
 
-rl.on("close", () => {
-  const endTime = performance.now();
-  const durationSeconds = getDuration(startTime, endTime);
-  console.log(`Read ${count} lines in ${durationSeconds.toFixed(3)} seconds`);
-});
+const endTime = performance.now();
+const durationSeconds = getDuration(startTime, endTime);
+console.log(`Read ${count} lines in ${durationSeconds.toFixed(3)} seconds`);
 
 // ==== Helper functions ====
 function getDuration(startTime: number, endTime: number) {
