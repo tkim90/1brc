@@ -25,22 +25,21 @@ interface WorkerResult {
 function getPreviousNewlinePosition(startingByteOffset: number, fd: number): number {
   const CHAR_NEWLINE = '\n'.charCodeAt(0);
   const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+  const BUFFER = new Uint8Array(CHUNK_SIZE);
 
   let searchEndByte = startingByteOffset;
 
   // Search backward in chunks
   while (searchEndByte > 0) {
     const searchStartByte = Math.max(0, searchEndByte - CHUNK_SIZE);
-    const bytesToRead = searchEndByte - searchStartByte;
-    const buffer = Buffer.alloc(bytesToRead);
 
-    const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, searchStartByte);
+    const bytesRead = fs.readSync(fd, BUFFER, 0, CHUNK_SIZE, searchStartByte);
 
     if (bytesRead === 0) return -1;
 
     // Search backward through this chunk
     for (let i = bytesRead - 1; i >= 0; i--) {
-      if (buffer[i] === CHAR_NEWLINE) {
+      if (BUFFER[i] === CHAR_NEWLINE) {
         // Newline found. Return the byte position where we found it
         const newlineByteOffset = searchStartByte + i;
         return newlineByteOffset;
@@ -211,8 +210,8 @@ async function processFileInParallel(filePath: string) {
     outputParts.push(`${station}:${stats.min.toFixed(1)}/${mean.toFixed(1)}/${stats.max.toFixed(1)}`);
   }
   
-  const finalOutput = `{${outputParts.join(',\n')}}`;
-  console.log(finalOutput.slice(0, 1000));
+  // const finalOutput = `{${outputParts.join(',\n')}}`;
+  // console.log(finalOutput.slice(0, 1000));
 
   return results;
 }
