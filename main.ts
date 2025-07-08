@@ -295,8 +295,8 @@ async function processFileInParallel(filePath: string) {
   
   // Print the first 10 characters of the final output
   const finalOutput = `{${outputParts.join(',\n')}}`;
-  console.log(finalOutput);
-  // console.log(finalOutput.slice(0, 1000));
+  // console.log(finalOutput);
+  console.log(finalOutput.slice(0, 1000));
 
   return results;
 }
