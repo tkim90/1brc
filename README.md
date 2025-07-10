@@ -28,8 +28,9 @@ bun run main.ts test.txt
 2. Install jdk (make sure it's v21): `brew install openjdk@21`
 3. Add jdk is in your rc path, either .zshrc or .bashrc (instructions in installation output)
 4. Run `./mvnw clean verify`
-5. NOTE: file is 13.8GB, make sure you have enoug space! --> Run `./create_measurements_fast.sh 1000000000`
-6. (optional) download one of the answers by running `./calculate_average_jerrinot.sh > result.txt`
+5. Run `./create_measurements_fast.sh 1000000000`
+    _NOTE: file is 13.8GB, make sure you have enough space_
+7. (optional) download one of the answers by running `./calculate_average_jerrinot.sh > result.txt`
 
 ### Step 2: Run the parser
 ```
