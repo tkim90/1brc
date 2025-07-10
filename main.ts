@@ -62,10 +62,6 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
   // open the file once and reuse the file descriptor for all readSync() operations
   const fd = fs.openSync(filePath, "r");
   const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
-  
-  console.log(`• File size: ${FILE_SIZE.toLocaleString()} bytes`);
-  console.log(`Chunk Size: ${Math.floor(approxChunkSize / cpuCount)} bytes`);
-  
   const byteChunks: Array<{start: number, end: number}> = [];
   
   let cursor = 0; // Start of next chunk
@@ -117,13 +113,10 @@ async function processFileInParallel(filePath: string) {
 
   const CPU_COUNT = os.cpus().length;
   const fileChunks = createChunks(filePath, CPU_COUNT);
+  const masterStats = new Map<string, StationStats>();
   
   console.log(`• Starting ${fileChunks.length} workers...`);
 
-  // Master statistics aggregation
-  const masterStats = new Map<string, StationStats>();
-
-  // Create workers
   const workers: Promise<WorkerResult>[] = fileChunks.map((fileChunk, index) => {
     return new Promise((resolve, reject) => {
       const worker = new Worker("./worker.ts", {
@@ -172,22 +165,10 @@ async function processFileInParallel(filePath: string) {
     });
   });
 
-  // Wait for all workers to complete
   const results = await Promise.all(workers);
 
-  const endTime = performance.now();
-  const durationSeconds = getDuration(startTime, endTime);
   const totalRows = results.reduce((sum, r) => sum + r.rowsProcessed, 0);
-
-  console.log(`\n🟢 COMPLETE! 🟢`);
-  console.log(`• Total rows processed: ${totalRows.toLocaleString()}`);
-  console.log(`• Total time: ${durationSeconds.toFixed(2)}s`);
-  console.log(`• Average throughput: ${Math.round(totalRows / durationSeconds).toLocaleString()} rows/second`);
-
-  // Generate final output in required format
   const outputParts: string[] = [];
-  
-  // Sort stations alphabetically
   const sortedStations = Array.from(masterStats.keys()).sort();
   
   for (const station of sortedStations) {
@@ -196,16 +177,19 @@ async function processFileInParallel(filePath: string) {
     outputParts.push(`${station}:${stats.min.toFixed(1)}/${mean.toFixed(1)}/${stats.max.toFixed(1)}`);
   }
   
+  const endTime = performance.now();
+  const durationSeconds = getDuration(startTime, endTime);
+  console.log(`\n🟢 COMPLETE! 🟢`);
+  console.log(`• Total rows processed: ${totalRows.toLocaleString()}`);
+  console.log(`• Total time: ${durationSeconds.toFixed(2)}s`);
+  console.log(`• Average throughput: ${Math.round(totalRows / durationSeconds).toLocaleString()} rows/second`);
+  
   // const finalOutput = `{${outputParts.join(',\n')}}`;
   // console.log(finalOutput.slice(0, 1000));
-
   return results;
 }
 
-// Set optimal thread pool size for file I/O
 process.env.UV_THREADPOOL_SIZE = os.cpus().length.toString();
-
-// Get file path from command line argument
 const filePath = process.argv[2];
 
 if (!filePath) {
