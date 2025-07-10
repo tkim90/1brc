@@ -1,5 +1,4 @@
 import { createReadStream } from "fs";
-import { createInterface } from "readline";
 import { parentPort, workerData } from "worker_threads";
 
 interface WorkerData {
@@ -31,58 +30,62 @@ async function processFileChunk() {
   );
 
   let rowsProcessed = 0;
-  const stats: Record<string, StationStats> = {};
+  const stats = new Map<string, StationStats>();
 
   try {
     // Create a read stream for the specific byte range
     const stream = createReadStream(filePath, {
       start: startByte,
       end: endByte,
-      highWaterMark: 1024 * 1024 * 1, // 1MB buffer was the sweet spot for throughput
+      highWaterMark: 1024 * 1024 * 1, // 1MB buffer
     });
 
-    // Create readline interface for line-by-line processing
-    const rl = createInterface({
-      input: stream,
-      crlfDelay: Infinity, // 'Infinity' means it handles both \n and \r\n correctly
-    });
+    let buffer = Buffer.alloc(0);
+    const NEWLINE = '\n'.charCodeAt(0);
 
-    rl.on("line", (line: string) => {
-      rowsProcessed++;
-
-      const parsedLine = parseLine(line);
-      const { station, temperature } = parsedLine;
-
-      if (!station || isNaN(temperature)) return;
-
-      if (!(station in stats)) {
-        stats[station] = {
-          sum: 0,
-          cnt: 0,
-          min: temperature,
-          max: temperature,
-        };
+    for await (const chunk of stream) {
+      buffer = Buffer.concat([buffer, chunk]);
+      
+      // Process complete lines in the buffer
+      let lineStart = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        if (buffer[i] === NEWLINE) {
+          // Found a complete line
+          const lineLength = i - lineStart;
+          if (lineLength > 0) {
+            processLineFromBuffer(buffer, lineStart, lineLength, stats);
+            rowsProcessed++;
+          }
+          lineStart = i + 1;
+        }
       }
+      
+      // Keep remaining incomplete line in buffer
+      if (lineStart < buffer.length) {
+        buffer = buffer.subarray(lineStart);
+      } else {
+        buffer = Buffer.alloc(0);
+      }
+    }
 
-      const stationStats = stats[station]!;
-      stationStats.sum += temperature;
-      stationStats.cnt += 1;
-      stationStats.min = Math.min(stationStats.min, temperature);
-      stationStats.max = Math.max(stationStats.max, temperature);
-    });
-
-    // Wait for the stream to finish processing
-    await new Promise<void>((resolve, reject) => {
-      rl.on("close", resolve);
-      rl.on("error", reject);
-    });
+    // Process final line if buffer has content
+    if (buffer.length > 0) {
+      processLineFromBuffer(buffer, 0, buffer.length, stats);
+      rowsProcessed++;
+    }
 
     const processingTime = performance.now() - startTime;
+
+    // Convert Map back to Record for serialization
+    const statsObj: Record<string, StationStats> = {};
+    for (const [station, stationStats] of stats) {
+      statsObj[station] = stationStats;
+    }
 
     const result: WorkerResult = {
       rowsProcessed,
       processingTime,
-      stats,
+      stats: statsObj, // Send as Record object
     };
 
     // Send result back to main thread
@@ -100,15 +103,108 @@ async function processFileChunk() {
   }
 }
 
-function parseLine(line: string): { station: string; temperature: number } {
-  const parts = line.split(";");
-  if (parts.length !== 2) return { station: "", temperature: NaN };
-  const station = parts[0]?.trim() ?? "";
-  const temperature = Number(parts[1]);
-  return { station, temperature };
+const ASCII_0 = '0'.charCodeAt(0);
+const ASCII_9 = '9'.charCodeAt(0);
+const ASCII_DECIMAL = '.'.charCodeAt(0);
+const ASCII_MINUS = '-'.charCodeAt(0);
+
+function processLineFromBuffer(
+  buffer: Buffer, 
+  start: number, 
+  length: number, 
+  stats: Map<string, StationStats>
+) {
+  // Find semicolon position
+  let semicolonPos = -1;
+  for (let i = start; i < start + length; i++) {
+    const isSemicolon = buffer[i] === ';'.charCodeAt(0);
+    if (isSemicolon) {
+      semicolonPos = i;
+      break;
+    }
+  }
+  
+  if (semicolonPos === -1) return; // No semicolon found, invalid line
+  
+  // Extract station name (trim whitespace)
+  let stationStart = start;
+  let stationEnd = semicolonPos;
+  
+  const station = buffer.toString('utf8', stationStart, stationEnd);
+  
+  // Extract temperature value cursors (all values after the semicolon)
+  const tempStart = semicolonPos + 1;
+  const tempEnd = start + length;
+  
+  // Skip leading whitespace for temperature
+  let tempPos = tempStart;
+  
+  // =========================================================================
+  // Build the temperature value from the digits, decimal, and negative sign
+  // =========================================================================
+  let temperature = 0;
+  let isNegative = false;
+  let hasDecimal = false;
+  let decimalDivisor = 1;
+
+  const detectedNegativeSign = buffer[tempPos]! === ASCII_MINUS;
+  if (detectedNegativeSign) {
+    isNegative = true;
+    tempPos++;
+  }
+  
+  const isDigit = (char: number) => char! >= ASCII_0 && char! <= ASCII_9;
+
+  for (let i = tempPos; i < tempEnd; i++) {
+    const char = buffer[i];
+    if (isDigit(char!)) {
+      // Convert ASCII digit to number
+      // Ex. ASCII code 55 - ASCII_0 (code 48) = 7
+      const digit = char! - ASCII_0;
+
+      if (hasDecimal) {
+        // Build the decimal value from the digits
+        decimalDivisor *= 10;
+        temperature += digit / decimalDivisor;
+      } else {
+        // Build the integer value from the digits
+        temperature = temperature * 10 + digit;
+      }
+    } else if (char! === ASCII_DECIMAL) {
+      hasDecimal = true;
+    }
+  }
+  
+  if (isNegative) {
+    temperature = -temperature;
+  }
+  
+  // =========================================================================
+  // Update min/max/sum/cnt stats
+  // =========================================================================
+  let stationStats = stats.get(station);
+  if (!stationStats) {
+    stationStats = {
+      sum: temperature,
+      cnt: 1,
+      min: temperature,
+      max: temperature,
+    };
+    stats.set(station, stationStats);
+  } else {
+    stationStats.sum += temperature;
+    stationStats.cnt += 1;
+
+    // Avoid doing Math.min/max to avoid function call overhead
+    if (temperature < stationStats.min) {
+      stationStats.min = temperature;
+    }
+    if (temperature > stationStats.max) {
+      stationStats.max = temperature;
+    }
+  }
 }
 
-// Start processing if this is run as a worker
 if (parentPort) {
   processFileChunk().catch((error) => {
     console.error(`💥 Worker ${workerData.workerId} failed:`, error);
