@@ -182,8 +182,8 @@ async function processFileInParallel(filePath: string) {
   console.log(`• Total time: ${durationSeconds.toFixed(2)}s`);
   console.log(`• Average throughput: ${Math.round(totalRows / durationSeconds).toLocaleString()} rows/second`);
   
-  // const finalOutput = `{${outputParts.join(',\n')}}`;
-  // console.log(finalOutput.slice(0, 1000));
+  const finalOutput = `{${outputParts.join(',\n')}}`;
+  console.log(finalOutput.slice(0, 1000));
   return results;
 }
 
