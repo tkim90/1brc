@@ -8,7 +8,7 @@ Tae's attempt at the 1 Billion Row Challenge in Bun/Typescript
 You can run it on a test file which only has 500 rows:
 
 ```
-bun main.ts test.txt
+bun run main.ts test.txt
 ```
 
 ## Running on 1 billion rows:
