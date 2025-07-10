@@ -24,10 +24,11 @@ bun run main.ts test.txt
 
 ### Step 2: Run the parser
 ```
-bun main.ts measurements.txt
+bun run main.ts measurements.txt
 ```
 
 Current Best Run (Macbook Pro M4 48GB RAM):
+
 🟢 COMPLETE! 🟢
 • Total rows processed: 1,000,000,000
 • Total time: 9.22s
