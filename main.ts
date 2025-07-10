@@ -10,7 +10,6 @@ interface StationStats {
 }
 
 interface WorkerResult {
-  workerId: number;
   rowsProcessed: number;
   processingTime: number;
   stats: Record<string, StationStats>;
@@ -124,12 +123,11 @@ async function processFileInParallel(filePath: string) {
           filePath,
           startByte: fileChunk.start,
           endByte: fileChunk.end,
-          workerId: index,
         },
       });
 
       worker.on("message", (result: WorkerResult) => {
-        console.log(`✅ Worker ${result.workerId} completed: ${result.rowsProcessed} rows in ${(result.processingTime / 1000).toFixed(2)}s`);
+        console.log(`✅ Worker completed: ${result.rowsProcessed} rows in ${(result.processingTime / 1000).toFixed(2)}s`);
         
         // Aggregate statistics from this worker
         for (const [station, stats] of Object.entries(result.stats)) {
