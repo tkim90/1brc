@@ -1,8 +1,9 @@
-import * as fs from "fs";
-import * as readline from "readline";
+import { createReadStream } from "fs";
+import { createInterface } from "readline";
 import { parentPort, workerData } from "worker_threads";
 
 interface WorkerData {
+  fileDescriptor: number;
   filePath: string;
   startByte: number;
   endByte: number;
@@ -34,14 +35,14 @@ async function processFileChunk() {
 
   try {
     // Create a read stream for the specific byte range
-    const stream = fs.createReadStream(filePath, {
+    const stream = createReadStream(filePath, {
       start: startByte,
       end: endByte,
       highWaterMark: 1024 * 1024 * 24, // 24MB buffer for high throughput
     });
 
     // Create readline interface for line-by-line processing
-    const rl = readline.createInterface({
+    const rl = createInterface({
       input: stream,
       crlfDelay: Infinity, // Handle Windows line endings properly
     });
@@ -82,28 +83,13 @@ async function processFileChunk() {
         stationStats.cnt += 1;
         stationStats.min = Math.min(stationStats.min, temp);
         stationStats.max = Math.max(stationStats.max, temp);
-        
-        // For performance, avoid console.log in the hot loop
-        // Only log progress occasionally
-        // if (rowsProcessed % 1000000 === 0) {
-        //   console.log(`⚡ Worker ${workerId}: ${rowsProcessed.toLocaleString()} rows processed`);
-        // }
       }
     });
 
-    // Handle completion
+    // Wait for the stream to finish processing
     await new Promise<void>((resolve, reject) => {
-      rl.on('close', () => {
-        resolve();
-      });
-
-      rl.on('error', (error) => {
-        reject(error);
-      });
-
-      stream.on('error', (error) => {
-        reject(error);
-      });
+      rl.on('close', resolve);
+      rl.on('error', reject);
     });
 
     const processingTime = performance.now() - startTime;
@@ -116,10 +102,15 @@ async function processFileChunk() {
     };
 
     // Send result back to main thread
-    parentPort?.postMessage(result);
+    if (parentPort) {
+      parentPort.postMessage(result);
+    }
 
   } catch (error) {
     console.error(`❌ Worker ${workerId} error:`, error);
+    if (parentPort) {
+      parentPort.postMessage({ error: error instanceof Error ? error.message : String(error) });
+    }
     throw error;
   }
 }

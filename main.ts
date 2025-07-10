@@ -61,9 +61,9 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
 
   // open the file once and reuse the file descriptor for all readSync() operations
   const fd = fs.openSync(filePath, "r");
+  const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
   
   console.log(`• File size: ${FILE_SIZE.toLocaleString()} bytes`);
-  const approxChunkSize = Math.floor(FILE_SIZE / cpuCount);
   console.log(`Chunk Size: ${Math.floor(approxChunkSize / cpuCount)} bytes`);
   
   const byteChunks: Array<{start: number, end: number}> = [];
@@ -115,22 +115,9 @@ function createChunks(filePath: string, cpuCount: number): Array<{start: number,
 async function processFileInParallel(filePath: string) {
   const startTime = performance.now();
 
-  // Get file size and CPU count for optimal chunking
-  const fileStats = fs.statSync(filePath);
-  const FILE_SIZE = fileStats.size;
   const CPU_COUNT = os.cpus().length;
-  
-  console.log(`• Using ${CPU_COUNT} CPU cores`);
-
   const fileChunks = createChunks(filePath, CPU_COUNT);
   
-  console.log(`• Created ${fileChunks.length} chunks:`);
-  fileChunks.forEach((chunk, i) => {
-    const chunkSizeBytes = chunk.end - chunk.start + 1;
-    const chunkSizeMB = chunkSizeBytes / 1024 / 1024;
-    console.log(`  Chunk ${i}: ${chunk.start.toLocaleString()} to ${chunk.end.toLocaleString()} (${chunkSizeMB.toFixed(2)} MB)`);
-  });
-
   console.log(`• Starting ${fileChunks.length} workers...`);
 
   // Master statistics aggregation
@@ -196,7 +183,6 @@ async function processFileInParallel(filePath: string) {
   console.log(`• Total rows processed: ${totalRows.toLocaleString()}`);
   console.log(`• Total time: ${durationSeconds.toFixed(2)}s`);
   console.log(`• Average throughput: ${Math.round(totalRows / durationSeconds).toLocaleString()} rows/second`);
-  console.log(`• Data throughput: ${((FILE_SIZE / 1024 / 1024) / durationSeconds).toFixed(2)} MB/s`);
 
   // Generate final output in required format
   const outputParts: string[] = [];
