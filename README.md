@@ -28,8 +28,8 @@ bun main.ts test.txt
 bun main.ts measurements.txt
 ```
 
-Current Best Run:
-📊 Total rows processed: 1,000,000,000
-⏱️  Total time: 20.77s
-🚀 Average throughput: 48,135,658 rows/second
-💾 Data throughput: 633.29 MB/s
+Current Best Run (Macbook Pro M4 48GB RAM):
+🟢 COMPLETE! 🟢
+• Total rows processed: 1,000,000,000
+• Total time: 9.22s
+• Average throughput: 108,511,229 rows/second
