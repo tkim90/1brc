@@ -191,13 +191,13 @@ process.env.UV_THREADPOOL_SIZE = os.cpus().length.toString();
 const filePath = process.argv[2];
 
 if (!filePath) {
-  console.error("❌ Please provide a file path as an argument, e.g.: bun 4-aggregate.ts <filename>");
+  console.error("❌ Please provide a file path as an argument, e.g.: bun main.ts <filename>");
   process.exit(1);
 }
 
-/*------------------------------------*/
+/*====================================*/
 /*           Run the program          */
-/*------------------------------------*/
+/*====================================*/
 processFileInParallel(filePath)
   .catch(console.error);
 

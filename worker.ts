@@ -21,6 +21,13 @@ interface WorkerResult {
   stats: Record<string, StationStats>;
 }
 
+const NEWLINE = '\n'.charCodeAt(0);
+const ASCII_0 = '0'.charCodeAt(0);
+const ASCII_9 = '9'.charCodeAt(0);
+const ASCII_DECIMAL = '.'.charCodeAt(0);
+const ASCII_MINUS = '-'.charCodeAt(0);
+const ASCII_SEMICOLON = ';'.charCodeAt(0);
+
 async function processFileChunk() {
   const { filePath, startByte, endByte }: WorkerData = workerData;
   const startTime = performance.now();
@@ -37,11 +44,10 @@ async function processFileChunk() {
     const stream = createReadStream(filePath, {
       start: startByte,
       end: endByte,
-      highWaterMark: 1024 * 1024 * 1, // 1MB buffer
+      highWaterMark: 1024 * 1024 * 1, // 1MB buffer (sweet spot for performance)
     });
 
     let buffer = Buffer.alloc(0);
-    const NEWLINE = '\n'.charCodeAt(0);
 
     for await (const chunk of stream) {
       buffer = Buffer.concat([buffer, chunk]);
@@ -103,11 +109,6 @@ async function processFileChunk() {
   }
 }
 
-const ASCII_0 = '0'.charCodeAt(0);
-const ASCII_9 = '9'.charCodeAt(0);
-const ASCII_DECIMAL = '.'.charCodeAt(0);
-const ASCII_MINUS = '-'.charCodeAt(0);
-
 function processLineFromBuffer(
   buffer: Buffer, 
   start: number, 
@@ -117,7 +118,7 @@ function processLineFromBuffer(
   // Find semicolon position
   let semicolonPos = -1;
   for (let i = start; i < start + length; i++) {
-    const isSemicolon = buffer[i] === ';'.charCodeAt(0);
+    const isSemicolon = buffer[i] === ASCII_SEMICOLON;
     if (isSemicolon) {
       semicolonPos = i;
       break;
