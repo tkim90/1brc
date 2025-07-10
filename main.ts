@@ -111,6 +111,7 @@ async function processFileInParallel(filePath: string) {
   const startTime = performance.now();
 
   const CPU_COUNT = os.cpus().length;
+  //                os.availableParallelism(); if you're running on Docker
   const fileChunks = createChunks(filePath, CPU_COUNT);
   const masterStats = new Map<string, StationStats>();
   
