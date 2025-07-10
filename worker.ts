@@ -44,44 +44,31 @@ async function processFileChunk() {
     // Create readline interface for line-by-line processing
     const rl = createInterface({
       input: stream,
-      crlfDelay: Infinity, // Handle Windows line endings properly
+      crlfDelay: Infinity, // 'Infinity' means it handles both \n and \r\n correctly
     });
 
-    // Process each line
     rl.on("line", (line: string) => {
-      // Process the line here - parse weather station data
       rowsProcessed++;
 
-      // Parse line: format is "StationName;Temperature"
-      const parts = line.split(";");
-      if (parts.length !== 2) {
-        // Skip malformed lines
-        return;
-      }
+      const parsedLine = parseLine(line);
+      const { station, temperature } = parsedLine;
 
-      const station = parts[0]?.trim();
-      const temp = Number(parts[1]);
+      if (!station || isNaN(temperature)) return;
 
-      if (!station || isNaN(temp)) {
-        // Skip lines with invalid station name or temperature
-        return;
-      }
-
-      // Update statistics for this station
       if (!(station in stats)) {
         stats[station] = {
           sum: 0,
           cnt: 0,
-          min: temp,
-          max: temp,
+          min: temperature,
+          max: temperature,
         };
       }
 
       const stationStats = stats[station]!;
-      stationStats.sum += temp;
+      stationStats.sum += temperature;
       stationStats.cnt += 1;
-      stationStats.min = Math.min(stationStats.min, temp);
-      stationStats.max = Math.max(stationStats.max, temp);
+      stationStats.min = Math.min(stationStats.min, temperature);
+      stationStats.max = Math.max(stationStats.max, temperature);
     });
 
     // Wait for the stream to finish processing
@@ -111,6 +98,14 @@ async function processFileChunk() {
     }
     throw error;
   }
+}
+
+function parseLine(line: string): { station: string; temperature: number } {
+  const parts = line.split(";");
+  if (parts.length !== 2) return { station: "", temperature: NaN };
+  const station = parts[0]?.trim() ?? "";
+  const temperature = Number(parts[1]);
+  return { station, temperature };
 }
 
 // Start processing if this is run as a worker
