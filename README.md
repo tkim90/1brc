@@ -2,6 +2,15 @@
 
 Tae's attempt at the 1 Billion Row Challenge in Bun/Typescript
 
+Current Best Run (Macbook Pro M4 48GB RAM) - ***9.22s***:
+
+```
+🟢 COMPLETE! 🟢
+- Total rows processed: 1,000,000,000
+- Total time: 9.22s
+- Average throughput: 108,511,229 rows/second
+```
+
 
 ## Testing
 
@@ -27,9 +36,3 @@ bun run main.ts test.txt
 bun run main.ts measurements.txt
 ```
 
-Current Best Run (Macbook Pro M4 48GB RAM):
-
-🟢 COMPLETE! 🟢
-• Total rows processed: 1,000,000,000
-• Total time: 9.22s
-• Average throughput: 108,511,229 rows/second
