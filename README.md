@@ -11,16 +11,7 @@ Current Best Run (Macbook Pro M4 48GB RAM) - ***9.22s***:
 - Average throughput: 108,511,229 rows/second
 ```
 
-
-## Testing
-
-You can run it on a test file which only has 500 rows:
-
-```
-bun run main.ts test.txt
-```
-
-## Running on 1 billion rows:
+## Instructions
 
 ### Step 1: Create the file with 1 billion rows
 
@@ -33,7 +24,24 @@ bun run main.ts test.txt
 7. (optional) download one of the answers by running `./calculate_average_jerrinot.sh > result.txt`
 
 ### Step 2: Run the parser
+1. Install deps with `npm install`
+2. Run the parser, either bun or nodejs:
+
+
+## Run it on a test file first
+
+You can run it on a test file which only has 500 rows:
+
 ```
-bun run main.ts measurements.txt
+npm run bun test.txt
+OR
+npm run node test.txt
+```
+
+## Run it on measurements.txt (the 13.8GB file)
+```
+npm run bun measurements.txt
+OR
+npm run node measurements.txt
 ```
 

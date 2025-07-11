@@ -3,8 +3,15 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "bun": "bun run main.ts",
+    "node": "node --loader ts-node/esm main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js"
+  },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/node": "^20.0.0",
     "ts-node": "^10.9.2"
   },
   "peerDependencies": {

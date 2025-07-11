@@ -119,7 +119,9 @@ async function processFileInParallel(filePath: string) {
 
   const workers: Promise<WorkerResult>[] = fileChunks.map((fileChunk, index) => {
     return new Promise((resolve, reject) => {
-      const worker = new Worker("./worker.ts", {
+      // Use .ts for Bun, .js for Node.js
+      const workerPath = typeof Bun !== 'undefined' ? "./worker.ts" : "./worker.js";
+      const worker = new Worker(workerPath, {
         workerData: {
           filePath,
           startByte: fileChunk.start,
